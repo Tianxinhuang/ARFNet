@@ -7,8 +7,7 @@ import os
 import tensorflow as tf
 import time
 from io_util import read_pcd, save_pcd
-from vv_recon import chamfer_big, earth_mover,full_process,fidelity_loss#,naive_substract
-#from model_substract_test import model_substract
+from vv_recon import chamfer_big, earth_mover,full_process,fidelity_loss
 from visu_util import plot_pcd_three_views
 from data_util import resample_pcd
 import time
@@ -21,22 +20,10 @@ def test(args):
     inputs = tf.placeholder(tf.float32, (1, 3000, 3))
     npts = tf.placeholder(tf.int32, (1,))
     gt = tf.placeholder(tf.float32, (1, args.num_gt_points, 3))
-    #model_module = importlib.import_module('.%s' % args.model_type, 'models')
-    #model = model_module.Model(inputs, npts, gt, tf.constant(1.0))
-    #complete_op=re_decoder(re_encoder(inputs,type_pl='p'))
-    com0,com1,com2,complete_op=full_process(inputs)
+    _,_,_,complete_op=full_process(inputs)
     count()
-    #_,_,complete_op=re_decoder(re_encoder(inputs))
-    #print(complete_op)
     output = tf.placeholder(tf.float32, (1, args.num_gt_points, 3))
-    #subgt=gt
-    #subout=output
-    #subgt=naive_substract(gt,inputs)
-    #subout=naive_substract(output,inputs)
 
-    #cd_op, _=chamfer_big(subgt, subout)
-    #emd_op=fidelity_loss(subgt, output)
-    #emd_op=cd_op
     cd_op,_ = chamfer_big(output, gt)
     emd_op = fidelity_loss(inputs, output)
 
@@ -47,12 +34,8 @@ def test(args):
     sess = tf.Session(config=config)
 
     var=[v for v in tf.global_variables()]
-    #print(var)
-    myvar=[v for v in var if v.name.split(':')[0].split('_')[0]!='subvar']
-    ivar=[v for v in var if v.name.split(':')[0].split('_')[0]=='subvar']
-    #print(ivar)
     sess.run(tf.global_variables_initializer())
-    saver = tf.train.Saver(var_list=myvar)
+    saver = tf.train.Saver(var_list=var)
     saver.restore(sess, tf.train.latest_checkpoint(args.checkpoint))
 
     os.makedirs(args.results_dir, exist_ok=True)
@@ -68,28 +51,18 @@ def test(args):
     cd_per_cat = {}
     emd_per_cat = {}
     for i, model_id in enumerate(model_list):
-        #while True:
-        for v in ivar:
-            sess.run(v.initializer)
         partial = read_pcd(os.path.join(args.data_dir, 'partial', '%s.pcd' % model_id))
         complete = read_pcd(os.path.join(args.data_dir, 'complete', '%s.pcd' % model_id))
-        #partial=partial[int(np.shape(partial)[0]*0.7):]
-        #start = time.time()
-        #print(np.shape(partial))
-        #assert np.shape(partial)[0]<3000
+
         partial=resample_pcd(partial,3000)
         start = time.time()
         completion = sess.run(complete_op, feed_dict={inputs: [partial]})
-        #res0,res1,completion=sess.run([com0,com1,com2], feed_dict={inputs: [partial]})
         #print(np.shape(completion))
         mytime=time.time() - start
         print('time',mytime)
         if i>=10:
             total_time += mytime
         cd, emd = sess.run([cd_op, emd_op], feed_dict={inputs: [partial],output: completion, gt: [complete]})
-        #subcom,subg = sess.run([subout, subgt], feed_dict={inputs: [partial],output: completion, gt: [complete]})
-        #print(subcom,subg)
-        #assert False
         total_cd += cd
         total_emd += emd
         writer.writerow([model_id, cd, emd])
@@ -105,11 +78,8 @@ def test(args):
         if i % args.plot_freq == 0:
             os.makedirs(os.path.join(args.results_dir, 'plots', synset_id), exist_ok=True)
             plot_path = os.path.join(args.results_dir, 'plots', synset_id, '%s.png' % model_id)
-            #plot_pcd_three_views(plot_path, [partial, subcom[0], subg[0]],
             plot_pcd_three_views(plot_path, [partial, completion[0], complete],
-            #plot_pcd_three_views(plot_path, [res0[0],res1[0], completion[0]],
-            #plot_pcd_three_views(plot_path, [completion[0][:8192], completion[0][8192:], complete],
-                                 ['input', 'output', 'ground truth'],
+                                             ['input', 'output', 'ground truth'],
                                  'CD %.4f  EMD %.4f' % (cd, emd),
                                  [5, 0.5, 0.5])
             #assert False
@@ -132,14 +102,12 @@ def test(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--list_path', default='../dense_data/test.list')
-    parser.add_argument('--data_dir', default='../dense_data/test')
-    #parser.add_argument('--checkpoint', default='./RFNet/bestrecord')#bestrecon
-    parser.add_argument('--checkpoint', default='./bestrecon/modelvv_recon')#bestrecon
-    #parser.add_argument('--checkpoint', default='./modelvv_80000_ab')
+    parser.add_argument('--list_path', default='../../dense_data/test.list')
+    parser.add_argument('--data_dir', default='../../dense_data/test')
+    parser.add_argument('--checkpoint', default='./bestrecon/modelvv_recon/')
     parser.add_argument('--results_dir', default='results/recon')
     parser.add_argument('--num_gt_points', type=int, default=16384)
-    parser.add_argument('--plot_freq', type=int, default=10)
+    parser.add_argument('--plot_freq', type=int, default=100)
     parser.add_argument('--save_pcd', action='store_true')
     args = parser.parse_args()
 
