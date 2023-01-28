@@ -35,7 +35,9 @@ Python3 recon_test.py
 ```
 The paths of test data(`data_dir`) and lists(`list_path`) should be edited before testing.
 The qualitative results should be 
+
 ![image](https://github.com/Tianxinhuang/ARFNet/blob/master/tmm_quali.png)
+
 The quantitative results on the Known categories of ShapeNet in PCN would be
 ![image](https://github.com/Tianxinhuang/ARFNet/blob/master/tmm_quan.jpg)
 
